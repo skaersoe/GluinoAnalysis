@@ -1,0 +1,10 @@
+GluinoAnalysis
+
+Automatic multiprocessing NTuple analysis in Python, using PyROOT.
+
+
+
+Requirements:
+
+Python 2.6 or later
+CERN ROOT 5.26 or later
