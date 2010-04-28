@@ -6,7 +6,7 @@
  
  Usage:
     Edit analysis()
-    command: > python pyGluino.py input1.root,input2.root,input3.root n_threads
+    command: > python myAnalysis.py input1.root,input2.root,input3.root n_threads
 
 
  Requirements:
@@ -30,45 +30,37 @@
 import sys
 import user
 import ROOT
-from histo import Histogram, HistogramService
-from jobhandler import JobHandler
+from GluinoAnalysis.GluinoAnalysis import GluinoAnalysis
+from GluinoAnalysis.histo import HistogramService, Histogram
 
 
 ################################################################################
-## User Options (EDIT)
-
-
-
-# Show ROOT Session with histograms after completion
-InteractivePlots = False
-
-# Save histograms to ROOT file
-SaveToFile = True
-OutputFileName = "myhistograms.root"
-
-
-
-################################################################################
-## Your analysis (EDIT THIS!!!!)
+## Your analysis, edit to suit your needs
 
 ## User imports
-from calo import Calo
-from pixel import Pixel
-from trt import TRT
-from smp import SMPEvent
+from smpAnalysis.calo import Calo
+from smpAnalysis.pixel import Pixel
+from smpAnalysis.trt import TRT
+from smpAnalysis.smp import SMPEvent
+
 def analysis(input):
     """Analysis method"""
     
+    ############## REQUIRED BY GluinoAnalysis ##################
     # Add the input files to the ROOT chain
     chain = ROOT.TChain("CollectionTree")     
     for inputFile in input["input"]:
         chain.AddFile(inputFile)
     
-    # Select all branches
-    chain.SetBranchStatus("*", 1)
-    
     # Intitialize histogramService
     histoSrv = HistogramService()
+    ########### END OF REQUIRED BY GluinoAnalysis #############
+    
+    
+    # Select all branches from ROOT files
+    chain.SetBranchStatus("*", 1)
+    
+    
     
     # Create Histogram branches
     histoCalo = histoSrv.branch("Calorimeters")
@@ -82,10 +74,18 @@ def analysis(input):
 
     smpEvent = SMPEvent(chain, histoTruth)
     
-    ## event loop    
-    N_evts = 10000
-    if chain.GetEntries() < N_evts:
+    ## Use custom variables from configuration file in analysis... (dirty joboptions parsing for now...)
+    if input.has_key("joboptions"):
+        N_evts = int(input["joboptions"][0][1])
+    else:
+        N_evts = -1
+        
+    if N_evts == -1 or N_evts > chain.GetEntries():
         N_evts = chain.GetEntries()
+        
+    print "Events: %d" % N_evts
+    
+    ## event loop         
     for i in xrange(N_evts):
         chain.GetEntry(i)
         smpEvent.GetEntry()
@@ -112,70 +112,17 @@ def analysis(input):
     
     
     
-    # Return histogram service for merging
+    # Return histogram service for merging (REQUIRED)
     return histoSrv.returnTree()
-
-
-
-
-
-
-
-
-
 
 
 
 ################################################################################
 ######################### DO NOT EDIT BELOW THIS LINE ##########################
 ################################################################################
-
-def printBanner(args):
-    """docstring for print"""
-    print 90 *"="
-    print
-    print "\tpyGluino NTuple Analysis Framework\n\n"
-    print "\tAuthor: Morten Dam Joergensen, 2010\n"
-    print "\thttp://gluino.com"
-    print
-    print 90*"="
-    print
-    print " Initializing Analysis with the following conditions: "
-    print
-    print "Number of jobs specified = %d" % args["jobs"]
-    print "Number of input files: %d" % args["ninputfiles"]
-    if InteractivePlots:
-        print "Displaying results on screen."
-    if SaveToFile:
-        print "Writing output to file : %s" % OutputFileName
-    print
-    
 def main():
+    """Execute the analysis"""
+    gluino = GluinoAnalysis(analysis, "RunOptions.cfg")
     
-    # Try to handle <vector<vector float> > structures in ROOT
-    ROOT.gROOT.ProcessLine('.L Loader.C+')
-
-    # input (grid specific list:   file1,file2,file3,etc....)
-    inputFiles = sys.argv[1].split(',')
-    if len(sys.argv) > 2:
-        if int(sys.argv[2]) > 0 and int(sys.argv[2]):
-            jobs = int(sys.argv[2])
-        else:
-            print "[WARNING] Ilegal number of processes (must be larger then 1 and less then the number of input files) specified, using single threaded analysis."
-            jobs = 1
-    else:
-        print "[INFORMATION] No number of processes specified using available on system, using all available CPUs."
-        jobs = 0
-
-    printBanner({"jobs" : jobs, "ninputfiles" : len(inputFiles)})
-    runner = JobHandler(output=OutputFileName, DisplayResult = InteractivePlots, SaveResult = SaveToFile)
-    runner.addJob(analysis)
-    for filename in inputFiles:
-        runner.addInputFile(filename)
-    
-    runner.executeJobs(jobs)
-
-    print 90*"="
-
 if __name__ == "__main__":
     main()
