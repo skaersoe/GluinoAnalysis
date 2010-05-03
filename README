@@ -1,0 +1,93 @@
+===============================================================================
+	
+		GluinoAnalysis -- Distributed PyROOT analysis made easy
+		http://gluino.com
+		
+		Author: Morten Dam Joergensen | http://mdj.dk
+		
+===============================================================================
+
+
+	Overview:
+		* Description
+		* Requirements
+		* Installation
+		* Usage
+
+
+		
+	Description
+	 
+		GluinoAnalysis is a python framework that makes multiprocessing, and 
+		distributed computing for PyROOT/ROOT easy.
+		
+		Without rewriting your analysis, you can instantly take advantage of
+		multi-core architectures and clusters of computers.
+		
+		The main focus lies on fast turnaround time in development and testing
+		Performance relative to pure C++ ROOT analysis is secondary, as long
+		as the execution time is "good enough". The goal is to make Python a
+		serious language for analysis, not trying to be faster then others.
+		
+		
+		GluinoAnalysis comes with facilities for organizing histograms into
+		TFolders for easy and structured access, while this is a matter of 
+		taste, its also an essential part of they way the parallelization is
+		done. Every time a job is broken into many, the step back to a single
+		result, called merging, requires special handling. While it is possible
+		to create a histogram outside the histogram service, it will not be 
+		merged correctly unless added to a histogram service structure in the
+		end.
+		
+		
+	Requirements
+	
+		Python 2.6 or later (because of the need for the multiprocessing lib.)
+		CERN ROOT 5.26 or later, compiled with PyROOT support.
+		
+		
+	Installation
+	
+		1) Download or clone the repository.
+		
+		2) make sure that both ROOT and Python works as intended by executing:
+				python -c "import ROOT; import multiprocessing"
+			in the terminal.
+			
+			Hint: The environment variables need to be set correctly to find ROOT
+				in Python, in .bashrc you can add:
+				
+					export ROOTSYS=/usr/local
+					export LD_LIBRARY_PATH=$ROOTSYS/lib:$ROOTSYS/lib/root: \
+					                            $PYTHONDIR/lib:$LD_LIBRARY_PATH
+					export PYTHONPATH=$ROOTSYS/lib:$ROOTSYS/lib/root:$PYTHONPATH
+					
+				assuming that ROOT is located in /usr/local.
+				
+				
+	Usage
+	
+		1) add your analysis to the method UserAnalysis.analysis() userAnalysis.py
+			Use the preexisting code as an example on how to set up the file input
+			and histogram service.
+			
+				Hint: feel like home as long as you work in userAnalysis.py
+					all your imports, methods and so on will be propagated to
+					the multi-processing facilities, even distributed onto 
+					other worker nodes.
+		
+		2) Configure a runFile, in the folder RunFiles/ you find to examples,
+			One is for running locally on your own machine, and one for distributed
+			execution.
+			
+				Hint: You can run a worker on your own machine, and use the 
+				distributed runFile for easy testing.
+				
+				Notice: Input files are _NOT_ distributed they must be placed
+				on common storage accessible to all workers as well as the
+				analysis machine itself.
+				
+		3) Run the analysis by writing:
+			./runGluinoAnalysis.py runFile.cfg
+			
+		
