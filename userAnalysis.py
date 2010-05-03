@@ -11,10 +11,7 @@ from GluinoAnalysis.histo import HistogramService, Histogram
 import ROOT
 
 ## User imports (Change, remove, play around)
-from smpAnalysis.calo import Calo
-from smpAnalysis.pixel import Pixel
-from smpAnalysis.trt import TRT
-from smpAnalysis.smp import SMPEvent
+from mymethods.test import Test
 
 class UserAnalysis(object):
     """docstring for UserAnalysis"""
@@ -42,29 +39,15 @@ class UserAnalysis(object):
         chain.SetBranchStatus("*", 1)
 
         # Create Histogram branches
-        histodEdx = histoSrv.branch("dEdx")
-        # histoCalo = histoSrv.branch("Calorimeters")
-        histoPixel = histoSrv.branch("Pixel detector")
-        histoTRT = histoSrv.branch("TRT detector")
-        # histoTruth = histoSrv.branch("Truth information")
+        histoTesting = histoSrv.branch("Testing Histograms")
 
         # Initialize tools
-        # calo = Calo(chain, histoCalo)
-        pixel = Pixel(chain, histoPixel)
-        trt = TRT(chain, histoTRT)
-        # smpEvent = SMPEvent(chain, histoTruth)
+        test = Test(chain, histoTesting)
+
 
         # Histograms
-        names = ["pixel", "SCT", "TRT", "ps", "em1", "em2", "em3", "tile1", "tile2", "tile3", "hec0", "hec1", "hec2", "hec3", "Muon"]
-        cellN = len(names)
-        calos = []
-        hxrange = [-800, 800]
-        hyrange = [0, 20]
-
-
-        for i in xrange(cellN):
-            calos.append(histodEdx.push(Histogram("TH2F",{ "title" : "%s" % names[i], "xlabel" : "p [GeV/c]", "ylabel" : "dE/dx [MeV/mm]"}, [300, 300], hxrange, hyrange)))
-            calos[i].drawOptions = ["COL"]
+        histoHandle = histoSrv.push(Histogram("TH2F",{ "title" : "My histogram", "xlabel" : "x axis", "ylabel" : "y axis"}, [300, 300], [0, 100], [10, 193]))
+        histoHandle.drawOptions = ["COL"]    # Plot setting
 
         
         ## Use custom variables from configuration file in analysis... (dirty joboptions parsing for now...)
@@ -79,7 +62,7 @@ class UserAnalysis(object):
             if i % int(N_evts/10.0) == 0:
                 print "At %d of %d events" % (i, N_evts)
             chain.GetEntry(i)
-            # smpEvent.GetEntry()
+
 
             ## Cuts
             # if chain.PassedL1_MU40 == 0: continue
@@ -88,16 +71,12 @@ class UserAnalysis(object):
             for trk in xrange(chain.Trk_N):
 
                 # Track cuts for High_pT analysis
-                # if chain.Trk_p_T[trk] > 40000 and chain.Trk_eta[trk] < 1.7:
-                # calo.alldedx(trk)
-                trt.dedx_bit(trk)
-                trt.betastuff(trk)
-                pixel.dedx(trk)
+                if chain.Trk_p_T[trk] > 40000 and chain.Trk_eta[trk] < 1.7:
+                    test.doTrkStuff(trk)
                 
-                # Fill 2D histograms with dE/dx values vs p
-                for j in xrange(cellN):
-                    if chain.Trk_dEdx[trk][j] >= 0:
-                        calos[j].fill(chain.Trk_charge[trk] * chain.Trk_p[trk]/1000.0, chain.Trk_dEdx[trk][j])
+                # Fill 2D histogram
+                if chain.Trk_dEdx[trk][j] >= 0:
+                    histoHandle.fill(chain.Trk_charge[trk] * chain.Trk_p[trk]/1000.0, chain.Trk_dEdx[trk][j])
 
 
 
