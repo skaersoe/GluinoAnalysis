@@ -51,24 +51,29 @@ class JobHandler(object):
         for f in files:
             inputobj.append({"input" : f, "joboptions" : self.joboptions})
 
-        p = mp.Pool(threads)
-        for job in self.inputJob:
-            self.output = p.map(job, inputobj)
+        try:
+            p = mp.Pool(threads)
+            for job in self.inputJob:
+                self.output = p.map(job, inputobj)
         
-        # Merge the histograms into one file
-        self.mergeHistograms()
+            # Merge the histograms into one file
+            self.mergeHistograms()
         
-        # Save results to ROOT file
-        if self.SaveResult:
-            self.writeHistogramsToFile()
-            print "Output written to: %s" % self.outputFile
+            # Save results to ROOT file
+            if self.SaveResult:
+                self.writeHistogramsToFile()
+                print "Output written to: %s" % self.outputFile
 
-        # Display results on the screen 
-        if self.DisplayResult:
-            self.displayHistograms()
-
-        # Return merged histogram structure
-        return self.output[0].histSrv
+            # Display results on the screen 
+            if self.DisplayResult:
+                self.displayHistograms()
+            
+            # Return merged histogram structure
+            return self.output[0].histSrv
+        
+        except:
+            print "[ERROR] Errors doing execution of user analysis."
+            return False
         
     def mergeHistograms(self):
         """docstring for mergeHistograms"""

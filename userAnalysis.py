@@ -10,7 +10,7 @@ Copyright (c) 2010 Niels Bohr Institute. All rights reserved.
 from GluinoAnalysis.histo import HistogramService, Histogram
 import ROOT
 
-## User imports
+## User imports (Change, remove, play around)
 from smpAnalysis.calo import Calo
 from smpAnalysis.pixel import Pixel
 from smpAnalysis.trt import TRT
@@ -21,11 +21,9 @@ class UserAnalysis(object):
     def __init__(self, input):
         super(UserAnalysis, self).__init__()
         self.input = input
-
-        print self.input
-        
         self.analysis(self.input)
         
+
     def analysis(self, input):
         """User Analysis method"""
 
@@ -46,14 +44,14 @@ class UserAnalysis(object):
         # Create Histogram branches
         histodEdx = histoSrv.branch("dEdx")
         # histoCalo = histoSrv.branch("Calorimeters")
-        # histoPixel = histoSrv.branch("Pixel detector")
-        # histoTRT = histoSrv.branch("TRT detector")
+        histoPixel = histoSrv.branch("Pixel detector")
+        histoTRT = histoSrv.branch("TRT detector")
         # histoTruth = histoSrv.branch("Truth information")
 
         # Initialize tools
         # calo = Calo(chain, histoCalo)
-        # pixel = Pixel(chain, histoPixel)
-        # trt = TRT(chain, histoTRT)
+        pixel = Pixel(chain, histoPixel)
+        trt = TRT(chain, histoTRT)
         # smpEvent = SMPEvent(chain, histoTruth)
 
         # Histograms
@@ -63,11 +61,12 @@ class UserAnalysis(object):
         hxrange = [-800, 800]
         hyrange = [0, 20]
 
+
         for i in xrange(cellN):
             calos.append(histodEdx.push(Histogram("TH2F",{ "title" : "%s" % names[i], "xlabel" : "p [GeV/c]", "ylabel" : "dE/dx [MeV/mm]"}, [300, 300], hxrange, hyrange)))
             calos[i].drawOptions = ["COL"]
 
-
+        
         ## Use custom variables from configuration file in analysis... (dirty joboptions parsing for now...)
         N_evts = chain.GetEntries()
         if input.has_key("joboptions"):
@@ -90,7 +89,11 @@ class UserAnalysis(object):
 
                 # Track cuts for High_pT analysis
                 # if chain.Trk_p_T[trk] > 40000 and chain.Trk_eta[trk] < 1.7:
-
+                # calo.alldedx(trk)
+                trt.dedx_bit(trk)
+                trt.betastuff(trk)
+                pixel.dedx(trk)
+                
                 # Fill 2D histograms with dE/dx values vs p
                 for j in xrange(cellN):
                     if chain.Trk_dEdx[trk][j] >= 0:

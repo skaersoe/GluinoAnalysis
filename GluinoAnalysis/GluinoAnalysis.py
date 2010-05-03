@@ -84,7 +84,6 @@ class GluinoAnalysis(object):
         
         # User options parsed into the analysis jobs
         if config.has_section("joboptions"):
-            print "we have joboptions..."
             self.joboptions = config.items("joboptions")
         else:
             print '[INFO] No "joboptions" section in configuration file: %s' % options

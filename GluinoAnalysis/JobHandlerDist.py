@@ -46,7 +46,7 @@ class JobHandlerDist(JobHandler):
         self.alive = 0 # Number of answering workers
         self.C = []  # Number of cores available per worker
         self.called = 0 # Number of worker tried (same as len(self.workers))
-        
+        self.success = 0
         # Thread
         self.wait_for_core_count = threading.Event()
         
@@ -74,31 +74,26 @@ class JobHandlerDist(JobHandler):
         
 
         self.workers.sort(key=lambda worker: worker.corecount, reverse=True) # sort based on available cores
-        
-        for w in self.workers:
-            print w.corecount
-            
-            
-        print "Total number of events= %d, Event per file= %d" % (N_evt_Total, EpF)
+                    
+        print "[INFO] Total number of events= %d, Event per file= %d" % (N_evt_Total, EpF)
         
         C = sum(self.C) # Total number of cores
-        print "input files %f, cores %d" % (len(self.inputFiles), C)
+        print "[INFO] Input files %f, cores %d" % (len(self.inputFiles), C)
         FpC = float(len(self.inputFiles)) / float(C) # Files per core
         
  
-        print " Files per core: %f" % FpC
+        print "[INFO] Files per core: %f" % FpC
 
         
         # Cores  / worker available
         
-        print "Worker alive: %s, with a total of %d cores." % (str(self.alive), sum(self.C))
+        print "[INFO] Worker alive: %s, with a total of %d cores." % (str(self.alive), sum(self.C))
         
-        print "workers in list: %d " % len(self.workers)
+        print "[INFO] Workers in list: %d " % len(self.workers)
         inpCount = 0
         for worker in self.workers:
-            print "Worker ip %s cores: %d" % (worker.ipaddress, worker.corecount)
-            print "Ideal number of files for this worker: %f" % (worker.corecount * FpC)
-            worker.jobFiles.append("Im/and/address")
+            print "[INFO] Worker ip %s cores: %d" % (worker.ipaddress, worker.corecount)
+            print "[INFO] Ideal number of files for this worker: %f" % (worker.corecount * FpC)
             if worker is self.workers[-1]:
                 worker.jobFiles = self.inputFiles[inpCount:]
                 # print self.inputFiles[inpCount:]
@@ -139,19 +134,21 @@ class JobHandlerDist(JobHandler):
             time.sleep(1) # Relax dude
             # print "Waiting for jobs to finish... (Threads = %d)" % threading.activeCount()
             
-        print "[INFO] All jobs done, merging..."
-
-        print self.mergeHistograms()
         
-        # Save results to ROOT file
-        if self.SaveResult:
-            self.writeHistogramsToFile()
-            print "[INFO] Output written to: %s" % self.outputFile
+        if self.success > 0:
+            print "[INFO] All jobs done, merging..."
+            self.mergeHistograms()
+        
+            # Save results to ROOT file
+            if self.SaveResult:
+                self.writeHistogramsToFile()
+                print "[INFO] Output written to: %s" % self.outputFile
 
-        # Display results on the screen 
-        if self.DisplayResult:
-            self.displayHistograms()
-            
+            # Display results on the screen 
+            if self.DisplayResult:
+                self.displayHistograms()
+        else:
+            print "[ERROR] All jobs failed."
         
         self.clean()
             
@@ -188,53 +185,61 @@ class JobHandlerDist(JobHandler):
         hosts = hosts.split(",")
         for host in hosts:
             host = host.strip() # remove excess spaces
-            ipport, passwd, poolsize = host.split(";")
+            ipport, passwd = host.split(";")
             ip, port = ipport.split(":")
-            # print ip, port, passwd, poolsize
-            self.addHost(ip, int(port), passwd, int(poolsize))
+            self.addHost(ip, int(port), passwd)
 
-    def addHost(self, ipaddress, port, password, poolsize):
+    def addHost(self, ipaddress, port, password):
         """docstring for addHost"""
-        self.workers.append(WorkerDescription(ipaddress, port, password, poolsize))
+        self.workers.append(WorkerDescription(ipaddress, port, password))
         
 
     def workerConnection(self, wid):
         """Thread with worker connection"""
         worker = self.workers[wid]
-        print "[INFO] Connecting to %s:%d" % (worker.ipaddress, worker.port)
+        self.called += 1
+        print "[INFO] Connecting to %s:%d..." % (worker.ipaddress, worker.port)
         #TODO make try except statement to catch unresponsive hosts
         address = (worker.ipaddress, worker.port)
-        conn = Client(address, authkey=worker.password)
-        # print conn
-        worker.alive = True # Add a good flag
+        try:
+            conn = Client(address, authkey=worker.password)
+            worker.alive = True # Add a good flag
+            
+            # Connect and get ready token
+            resp = conn.recv()
+            print resp[0]
+        
+            worker.corecount = resp[1]
+            self.C.append(resp[1]) # Add the number of available cores to collection
 
-        # Connect and get ready token
-        resp = conn.recv()
-        print resp[0]
+            with open("job.tar.gz", 'rb') as f:
+                conn.send_bytes(f.read())
+            f.close()
         
-        worker.corecount = resp[1]
-        self.C.append(resp[1]) # Add the number of available cores to collection
+            # PAUSE HERE and wait for all threads to return core number
+            self.wait_for_core_count.wait()
+        
+            print "[INFO] %d Job files allocated to worker %s" % (len(worker.jobFiles), worker.ipaddress)
+        
+            rec = conn.recv()
+            print rec[0]
 
-        f = open("job.tar.gz", 'rb')
-        conn.send_bytes(f.read())
-        f.close()
-        
-        # PAUSE HERE and wait for all threads to return core number
-        self.wait_for_core_count.wait()
-        
-        print "%d Job files allocated to worker %s" % (len(worker.jobFiles), worker.ipaddress)
-        
-        rec = conn.recv()
-        print rec[0]
-
-        conn.send([self.inputJob[0], {"input" : worker.jobFiles, "joboptions" : self.joboptions}])
+            conn.send([self.inputJob[0], {"input" : worker.jobFiles, "joboptions" : self.joboptions}])
  
-        output = conn.recv()
+            output = conn.recv()
+            if output[0]:
+                self.output.append(output[0]) #Write to stack of histograms
+                self.success += 1
+            else:
+                print "[ERROR] Job failed at %s:%d" % address
+                # TODO We should resubmit the jobs to another worker....
+            conn.close()
+            print "[INFO] Connection to %s closed" % worker.ipaddress
 
-        self.output.append(output[0]) #Write to stack of histograms
-        conn.close()
-        print "[INFO] Connection to %s closed" % worker.ipaddress
-        self.alive -= 1
+        except:
+            print "[WARNING] Connection to %s:%d failed. q" % (address[0], address[1])#, sys.exc_info()[1][1])
+        finally:
+            self.alive -= 1
         
         
 ## AUX Stuff
