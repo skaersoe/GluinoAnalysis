@@ -13,10 +13,12 @@ import tarfile
 from multiprocessing.connection import Client
 import os, sys
 import ROOT
-import time
+import time, datetime
+import random
+
 class WorkerDescription(object):
     """A Worker description"""
-    def __init__(self, ipaddress, port = 1137, password = "glueball", poolsize = 1):
+    def __init__(self, ipaddress, port = 1137, password = "glue ball", poolsize = 1):
         super(WorkerDescription, self).__init__()
         self.ipaddress = ipaddress
         self.port = port
@@ -32,9 +34,11 @@ class JobHandlerDist(JobHandler):
         super(JobHandlerDist, self).__init__()
         
         
+        
         # User opt
         self.DisplayResult = DisplayResult
         self.SaveResult = SaveResult
+        self.verboseLog = False # Do debug logging
         
         self.workers = []
         self.inputStack = []
@@ -62,38 +66,41 @@ class JobHandlerDist(JobHandler):
         if len(self.inputFiles) < N_samp:
             N_samp = len(self.inputFiles)
         
-        chain = ROOT.TChain("CollectionTree")     
-        for f in xrange(N_samp):
-            chain.AddFile(self.inputFiles[f])
+        try:
+            chain = ROOT.TChain("CollectionTree")     
+            for f in random.sample(self.inputFiles, N_samp):
+                chain.AddFile(f)
         
-        N_evt = chain.GetEntries()
-        EpF = N_evt / N_samp # Events per file
+            N_evt = chain.GetEntries()
+
+            EpF = N_evt / N_samp # Events per file
         
-        N_evt_Total = len(self.inputFiles) * EpF # Total number of events ('ish..)
-        
+            N_evt_Total = len(self.inputFiles) * EpF # Total number of events ('ish..)
+
+            print "[INFO] Estimated number of events= %d, Event per file= %d" % (N_evt_Total, EpF)
+        except:
+            print "Error sampling input files, perhaps not available to local system."
         
 
         self.workers.sort(key=lambda worker: worker.corecount, reverse=True) # sort based on available cores
                     
-        print "[INFO] Total number of events= %d, Event per file= %d" % (N_evt_Total, EpF)
+        
         
         C = sum(self.C) # Total number of cores
-        print "[INFO] Input files %f, cores %d" % (len(self.inputFiles), C)
         FpC = float(len(self.inputFiles)) / float(C) # Files per core
         
- 
-        print "[INFO] Files per core: %f" % FpC
-
-        
-        # Cores  / worker available
-        
-        print "[INFO] Worker alive: %s, with a total of %d cores." % (str(self.alive), sum(self.C))
-        
-        print "[INFO] Workers in list: %d " % len(self.workers)
+        if self.verboseLog:
+            print "[INFO] Input files %f, cores %d" % (len(self.inputFiles), C)
+            print "[INFO] Files per core: %f" % FpC
+            # Cores  / worker available
+            print "[INFO] Worker alive: %s, with a total of %d cores." % (str(self.alive), sum(self.C))
+            print "[INFO] Workers in list: %d " % len(self.workers)
         inpCount = 0
         for worker in self.workers:
-            print "[INFO] Worker ip %s cores: %d" % (worker.ipaddress, worker.corecount)
-            print "[INFO] Ideal number of files for this worker: %f" % (worker.corecount * FpC)
+            if self.verboseLog:
+                print "[INFO] Worker ip %s cores: %d" % (worker.ipaddress, worker.corecount)
+                print "[INFO] Ideal number of files for this worker: %f" % (worker.corecount * FpC)
+                
             if worker is self.workers[-1]:
                 worker.jobFiles = self.inputFiles[inpCount:]
                 # print self.inputFiles[inpCount:]
@@ -106,7 +113,8 @@ class JobHandlerDist(JobHandler):
 
     def executeJobs(self):
         """Execute the various job connections thingies... stufff..self"""
-        print "[INFO] Extracting analysis runtime environment"
+        if self.verboseLog:
+            print "[INFO] Extracting analysis runtime environment"
         self.prepareSubmission()
         
         
@@ -119,7 +127,8 @@ class JobHandlerDist(JobHandler):
             t = threading.Thread(target=self.workerConnection, args=(w,))
             t.start()
             self.alive += 1
-        print "[INFO] Done submitting jobs"
+        
+        print "[INFO] Job submitted."
 
         while self.alive > 0: # before: threading.active_count() > nStartTreads
             # Do something more interesting with this loop....
@@ -129,13 +138,16 @@ class JobHandlerDist(JobHandler):
                 # Get som info about the input data
                 self.calcFileDistribution()                
                 self.wait_for_core_count.set()
+                self.time0 = time.time()
+
 
                 
             time.sleep(1) # Relax dude
             # print "Waiting for jobs to finish... (Threads = %d)" % threading.activeCount()
             
-        
+        time_taken = 0
         if self.success > 0:
+            time_taken = datetime.timedelta(seconds=(time.time() - self.time0))
             print "[INFO] All jobs done, merging..."
             self.mergeHistograms()
         
@@ -149,7 +161,9 @@ class JobHandlerDist(JobHandler):
                 self.displayHistograms()
         else:
             print "[ERROR] All jobs failed."
-        
+
+        print "\n\n[INFO] Computation time: %s \n" % time_taken.__str__()
+
         self.clean()
             
         
@@ -198,7 +212,8 @@ class JobHandlerDist(JobHandler):
         """Thread with worker connection"""
         worker = self.workers[wid]
         self.called += 1
-        print "[INFO] Connecting to %s:%d..." % (worker.ipaddress, worker.port)
+        if self.verboseLog:
+            print "[INFO] Connecting to %s:%d..." % (worker.ipaddress, worker.port)
         #TODO make try except statement to catch unresponsive hosts
         address = (worker.ipaddress, worker.port)
         try:
@@ -207,7 +222,9 @@ class JobHandlerDist(JobHandler):
             
             # Connect and get ready token
             resp = conn.recv()
-            print resp[0]
+            
+            if self.verboseLog:
+                print resp[0]
         
             worker.corecount = resp[1]
             self.C.append(resp[1]) # Add the number of available cores to collection
@@ -222,7 +239,8 @@ class JobHandlerDist(JobHandler):
             print "[INFO] %d Job files allocated to worker %s" % (len(worker.jobFiles), worker.ipaddress)
         
             rec = conn.recv()
-            print rec[0]
+            if self.verboseLog:
+                print rec[0]
 
             conn.send([self.inputJob[0], {"input" : worker.jobFiles, "joboptions" : self.joboptions}])
  
@@ -234,10 +252,10 @@ class JobHandlerDist(JobHandler):
                 print "[ERROR] Job failed at %s:%d" % address
                 # TODO We should resubmit the jobs to another worker....
             conn.close()
-            print "[INFO] Connection to %s closed" % worker.ipaddress
+            print "[INFO] Connection to %s closed." % worker.ipaddress
 
         except:
-            print "[WARNING] Connection to %s:%d failed. q" % (address[0], address[1])#, sys.exc_info()[1][1])
+            print "[WARNING] Connection to %s:%d failed." % (address[0], address[1])#, sys.exc_info()[1][1])
         finally:
             self.alive -= 1
         

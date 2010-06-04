@@ -73,6 +73,7 @@ class JobHandler(object):
         
         except:
             print "[ERROR] Errors doing execution of user analysis."
+            print sys.exc_info()
             return False
         
     def mergeHistograms(self):
