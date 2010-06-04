@@ -1,0 +1,103 @@
+	body {
+		margin: 0;
+		background-image: url(/images/roots_06.jpg);
+		font-size: 13px;
+		color: #332621;
+		font-family: "Lucida Sans Unicode", "Lucida Grande", "sans-serif";
+/*		font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;*/
+	}
+	#site_info {
+		background-image: url(/images/monitor_04.png);
+		width: 762px;
+		height: 133px;
+		color: white;
+		position: relative;
+		overflow: hidden;
+	}
+	
+	#site_info div {
+		padding: 0px;
+		
+	}
+	textarea {
+	    font-size: 15px;
+	    background-color: transparent;
+	    color: white;
+	    border: 0px solid #999;
+	}
+	.freetext {
+        font-size: 15px;
+	    position: relative;
+	    margin: 20px;
+	    height: 90px;
+	    overflow: hidden;
+	    width: 600px;
+	}
+	.totalcores_wrap {
+        position: absolute;
+	    right: 10px;
+	    top: 8px;
+	    width: 200px;
+	    height: 80px;
+/*      border: 1px solid red;*/
+	    padding: 0;
+	    margin: 0;
+	        text-align: right;
+	}
+	.totalcores {
+	    position: relative;
+	    margin: 0;
+	    padding: 0;
+	    font-size: 80px;
+	    top: 0px;
+	
+	    
+	}
+	.totalcores_label {
+	    position: relative;
+        margin: 0;
+        padding: 0;
+        top: -20px;
+        right: 8px;
+        font-size: 33px;
+
+	}
+	
+	.busy_site {
+		background-image: url(/images/monitor_06.png);
+		height: 56px;
+		width: 762px;
+		position: relative;
+		margin-bottom: 10px;
+		color: white;
+	}
+	
+	.ready_site {
+		background-image: url(/images/monitor_08.png);
+		height: 56px;
+		width: 762px;
+		position: relative;
+		margin-bottom: 10px;
+		color: white;
+		
+	}
+	.hostname{
+		position: absolute;
+		left: 20px;
+		font-size: 24px;
+		top: 2px;		
+	}
+	.client {
+		position: absolute;
+		right: 20px;
+		top: 16px;
+
+		text-align: right;
+		font-size: 20px;
+	}
+	.cores {
+		position : absolute;
+		left: 20px;
+		top: 31px;
+		font-size: 15px;
+	}
