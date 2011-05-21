@@ -13,104 +13,7 @@ import os, sys
 import array
 import math
 
-class BaseProperties(EventAnalysis):
-    """Various basic information needed to construct other analyses"""
-    def __init__(self, evt, histoSrv, branchName = None, userOptions = None):
-        super(BaseProperties, self).__init__(evt, histoSrv, branchName, userOptions)
-        
-        # dE/dx vs phi and eta
-        self.names = ["pixel", "SCT", "TRT", "ps", "em1", "em2", "em3", "tile1", "tile2", "tile3", "hec0", "hec1", "hec2", "hec3", "Muon"]
-        self.active = [0, 3,4,5,6,7,8,9]
-        
-        self.dxHisto = self.histoSrv.branch("dEdx dx")
-        
-        self.dEdx_phi = []
-        self.dEdx_eta = []
 
-        for i in self.active:
-            self.dEdx_eta.append(self.histoSrv.push(Histogram("TProfile", "dEdx for %s vs #eta" % self.names[i], [200], [0, 3])))
-            self.dEdx_phi.append(self.histoSrv.push(Histogram("TProfile", "dEdx for %s vs #phi" % self.names[i], [200], [0, 4])))
-
-
-        
-
-    def event(self):
-        """Event level"""
-        pass
-            
-    def track(self, trk):
-        """docstring for track"""
-        
-        
-        # Plot dE/dx vs phi and vs eta to look for variations
-        for i in xrange(len(self.dEdx_eta)):
-            if self.evt.Trk_dEdx[trk][self.active[i]] > 0:
-                self.dEdx_eta[i].fill(self.evt.Trk_eta[trk], self.evt.Trk_dEdx[trk][self.active[i]])
-                self.dEdx_phi[i].fill(self.evt.Trk_phi[trk], self.evt.Trk_dEdx[trk][self.active[i]])
-        
-    def finalize(self):
-        """docstring for finalize"""
-        pass
-
-
-class MortenAnalysisGamma(EventAnalysis):
-    """Master analysis Gamma"""
-    def __init__(self, evt, histoSrv, branchName = None, userOptions = None):
-        super(MortenAnalysisGamma, self).__init__(evt, histoSrv, branchName, userOptions)
-        self.HistoMetaSrv = self.histoSrv.branch("Meta")
-        self.metaHist = {
-        "events" : self.HistoMetaSrv.push(Histogram("TH1F",  {"title" : "Events", "xlabel" : "", "ylabel" : "Events"}, [3], [0, 2])),
-        "events_passed_triggers" : self.HistoMetaSrv.push(Histogram("TH1F",  {"title" : "Events passed triggers", "xlabel" : "", "ylabel" : "Events"}, [3], [0, 2])),
-        "event_pass_track_cuts" :  self.HistoMetaSrv.push(Histogram("TH1F",  {"title" : "Events passed Track cut", "xlabel" : "", "ylabel" : "Events"}, [3], [0, 2]))
-        }
-        
-        self.basePlots = BaseProperties(self.evt, self.histoSrv, "Base plots", self.userOptions)
-        
-    def doEntryAnalysis(self):
-        """Analysis happening on event level"""
-        
-        # Meta data
-        self.metaHist["events"].fill(1)
-
-
-        # Pre trigger study
-        for trk in xrange(self.evt.Trk_N):
-            self.basePlots.track(trk)
-        
-        if self.evt.PassedL1_J75 == 1:  ## Kill J5 background in LAr, add more triggers here
-            return
-        
-        ### POST TRIGGER ###
-        
-        self.metaHist["events_passed_triggers"].fill(1)
-        
-        candidates = [] # Regular candidates
-        for trk in xrange(self.evt.Trk_N):
-            if self.evt.Mu_N >= 2 and self.evt.Trk_p_T[trk] > 75000: # and self.evt.Trk_N >= 2 
-                candidates.append(trk)
-        
-        same_charge = False
-        charge = 0
-        for trk in xrange(len(candidates)-1):
-            if self.evt.Trk_charge[trk] == self.evt.Trk_charge[trk + 1]:
-                same_charge = True
-                charge = self.evt.Trk_charge[trk]
-        
-        for trk in candidates:
-            if same_charge and len(candidates) >= 2:
-                self.doTrackAnalysis(trk)
-                self.metaHist["event_pass_track_cuts"].fill(1)
-
-                
-    def doTrackAnalysis(self, trk):
-        """Analysis happenig per track"""
-        pass
-    
-    def doFinalize(self):
-        """Run when eventloop is over"""
-        pass
-            
-   
         
 class UserAnalysis(object):
     """docstring for UserAnalysis"""
@@ -129,7 +32,7 @@ class UserAnalysis(object):
         print input["input"]
         ############## REQUIRED BY GluinoAnalysis ##################
         # Add the input files to the ROOT chain
-        chain = ROOT.TChain("CollectionTree")     
+        chain = ROOT.TChain("CollectionTree")      ## Add your TTree name here
         for inputFile in input["input"]:
             chain.AddFile(inputFile)
 
@@ -156,7 +59,7 @@ class UserAnalysis(object):
         # Select all branches from ROOT files
         chain.SetBranchStatus("*", 1)
 
-        mAnaly = MortenAnalysisGamma(chain, histoSrv, userOptions=options)
+        # mAnaly = MortenAnalysisGamma(chain, histoSrv, userOptions=options)
 
         ## event loop  
         try:  
@@ -164,12 +67,16 @@ class UserAnalysis(object):
                 if i % int(N_evts/10.0) == 0:
                     print "At %d of %d events" % (i, N_evts)
                 chain.GetEntry(i)
-                mAnaly.doEntryAnalysis() # Analysis per event
+                
+                for trk_i in xrange(chain.Trk_N):
+                    print chain.Trk_p[trk_i]/1000.0
+                
+                
             
 
         except:
             print "Event loop error", sys.exc_info()
-        mAnaly.doFinalize() # Run Post Event loop methods
+
 
         # Return histogram service for merging (REQUIRED)
         self.histSrv =  histoSrv.returnTree()
